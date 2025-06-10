@@ -5,6 +5,9 @@
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphNode.h"
 #include "EdGraphSchema_K2.h"
+#include "K2Node_BreakStruct.h"
+#include "K2Node_Variable.h"
+#include "CommonValidatorsStatics.h"
 #include "K2Node.h"
 
 
@@ -18,21 +21,50 @@ EDataValidationResult UEditorValidator_PureNode::ValidateLoadedAsset_Implementat
 	UBlueprint* Blueprint = Cast<UBlueprint>(InAsset);
 	if (!Blueprint) return EDataValidationResult::NotValidated;
 
+	bool bHasMultiPinPureNode = false;
+
 	for (UEdGraph* Graph : Blueprint->UbergraphPages)
 	{
 		for (UEdGraphNode* Node : Graph->Nodes)
 		{
 			UK2Node* PureNode = Cast<UK2Node>(Node);
+			//if is a "UK2Node_BreakStruct" continue, these can't take 'show exec pins' anyhow
+			if (Node->IsA(UK2Node_BreakStruct::StaticClass())) continue;
+			// questionable, but we don't want to show warnings for variable nodes, although they can take show exec pins and might have 'split pins'
+			if (Node->IsA(UK2Node_Variable::StaticClass())) continue;
 			if (PureNode && PureNode->IsNodePure())
 			{
 				if (IsMultiPinPureNode(PureNode))
 				{
-					FText output = FText::Join(FText::FromString(" "), PureNode->GetNodeTitle(ENodeTitleType::Type::MenuTitle), FText::FromString(TEXT("MultiPin Pure Nodes actually get called for each connected pin output.")));
-					Context.AddError(output);
-					return EDataValidationResult::Invalid;
+					FText output = FText::Join(FText::FromString(" "), PureNode->GetNodeTitle(ENodeTitleType::Type::MenuTitle), FText::FromString(" - "), FText::FromString(TEXT("MultiPin Pure Nodes actually get called for each connected pin output.")));
+
+					PureNode->ErrorMsg = output.ToString();
+					PureNode->ErrorType = EMessageSeverity::Warning;
+					PureNode->bHasCompilerMessage = true;
+					
+					//create tokenized message with action using UCommonValidatorsStatics::OpenBlueprintAndFocusNode
+					TSharedRef<FTokenizedMessage> TokenizedMessage = FTokenizedMessage::Create(EMessageSeverity::Warning, output);
+					TokenizedMessage->AddToken(FActionToken::Create(
+						FText::FromString(TEXT("Open Blueprint and Focus Node")),
+						FText::FromString(TEXT("Open Blueprint and Focus Node")),
+						FOnActionTokenExecuted::CreateLambda([Blueprint, Graph, PureNode]()
+							{
+								UCommonValidatorsStatics::OpenBlueprintAndFocusNode(Blueprint, Graph, PureNode);
+							}),
+						false
+					));
+
+					Context.AddMessage(TokenizedMessage);
+
+					bHasMultiPinPureNode = true;
+					Graph->NotifyNodeChanged(Node);
 				}
 			}
 		}
+	}
+	if (bHasMultiPinPureNode)
+	{
+		return EDataValidationResult::Invalid;
 	}
 
 	return EDataValidationResult::Valid;
