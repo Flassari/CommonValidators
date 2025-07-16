@@ -33,6 +33,16 @@ EDataValidationResult UEditorValidator_PureNode::ValidateLoadedAsset_Implementat
 			if (Node->IsA(UK2Node_BreakStruct::StaticClass())) continue;
 			// Questionable, but we don't want to show warnings for variable nodes, although they can take show exec pins and might have 'split pins'
 			if (Node->IsA(UK2Node_Variable::StaticClass())) continue;
+			// We should skip break/make nodes, for example, GameplayCueParameters.
+			// This is pure but its native break/make. So let's skip them, they are safe --KaosSpectrum
+			if (UK2Node_CallFunction* CallFunction = Cast<UK2Node_CallFunction>(Node))
+			{
+				UFunction* TargetFunc = CallFunction->GetTargetFunction();
+				if (TargetFunc && (TargetFunc->HasMetaData(TEXT("NativeBreakFunc")) || TargetFunc->HasMetaData(TEXT("NativeMakeFunc"))))
+				{
+					continue;
+				}
+			}
 			if (PureNode && PureNode->IsNodePure())
 			{
 				if (IsMultiPinPureNode(PureNode) && !IsWhitelistedPureNode(PureNode))
