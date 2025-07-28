@@ -10,6 +10,7 @@
 #include "K2Node_Event.h"
 #include "CommonValidatorsStatics.h"
 #include "Engine/MemberReference.h"
+#include "CommonValidatorsDeveloperSettings.h"
 
 bool UEditorValidator_EmptyTick::CanValidateAsset_Implementation(const FAssetData& InAssetData, UObject* InObject, FDataValidationContext& InContext) const
 {
@@ -17,7 +18,8 @@ bool UEditorValidator_EmptyTick::CanValidateAsset_Implementation(const FAssetDat
 	// Empty ticks are automatically disabled in UE 5.6 onwards, no need to do anything for those versions
 	return false;
 #else
-	return InObject && InObject->IsA<UBlueprint>();
+	bool bIsValidatorEnabled = GetDefault<UCommonValidatorsDeveloperSettings>()->bEnableEmptyTickNodeValidator;
+	return bIsValidatorEnabled && InObject && InObject->IsA<UBlueprint>();
 #endif
 }
 
@@ -37,8 +39,9 @@ EDataValidationResult UEditorValidator_EmptyTick::ValidateLoadedAsset_Implementa
 			{
 				if (IsEmptyTick(EventNode))
 				{
+					bool bShouldError = GetDefault<UCommonValidatorsDeveloperSettings>()->bErrorOnEmptyTickNodes;
 					// add message, with two actions: one to open the blueprint and focus the node, and one to remove the empty tick node
-					TSharedRef<FTokenizedMessage> TokenizedMessage = FTokenizedMessage::Create(EMessageSeverity::Warning, FText::FromString(TEXT("Empty Tick nodes still produce overhead, please use or remove it. ")));
+					TSharedRef<FTokenizedMessage> TokenizedMessage = FTokenizedMessage::Create((bShouldError ? EMessageSeverity::Error : EMessageSeverity::Warning), FText::FromString(TEXT("Empty Tick nodes still produce overhead, please use or remove it. ")));
 					TokenizedMessage->AddToken(FActionToken::Create(
 						FText::FromString(TEXT("Open Blueprint and Focus Node")),
 						FText::FromString(TEXT("Open Blueprint and Focus Node")),
@@ -61,7 +64,7 @@ EDataValidationResult UEditorValidator_EmptyTick::ValidateLoadedAsset_Implementa
 
 					Context.AddMessage(TokenizedMessage);
 					
-					return EDataValidationResult::Invalid;
+					return bShouldError ? EDataValidationResult::Invalid : EDataValidationResult::Valid;
 				}
 			}
 		}

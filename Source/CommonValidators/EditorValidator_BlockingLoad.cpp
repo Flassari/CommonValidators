@@ -10,10 +10,13 @@
 #include "Engine/MemberReference.h"
 #include "CommonValidatorsStatics.h"
 #include "K2Node_CallFunction.h"
+#include "CommonValidatorsDeveloperSettings.h"
+
 
 bool UEditorValidator_BlockingLoad::CanValidateAsset_Implementation(const FAssetData& InAssetData, UObject* InObject, FDataValidationContext& InContext) const
 {
-	return InObject && InObject->IsA<UBlueprint>();
+	bool bIsValidatorEnabled = GetDefault<UCommonValidatorsDeveloperSettings>()->bEnableBlockingLoadValidator;
+	return bIsValidatorEnabled && InObject && InObject->IsA<UBlueprint>();
 }
 
 EDataValidationResult UEditorValidator_BlockingLoad::ValidateLoadedAsset_Implementation(const FAssetData& InAssetData, UObject* InAsset, FDataValidationContext& Context)
@@ -29,8 +32,10 @@ EDataValidationResult UEditorValidator_BlockingLoad::ValidateLoadedAsset_Impleme
 		{
 			if (IsBlockingLoad(Node))
 			{
+				bool bShouldError = GetDefault<UCommonValidatorsDeveloperSettings>()->bErrorBlockingLoad;
+
 				// Create a tokenized message with an action to open the Blueprint and focus the node
-				TSharedRef<FTokenizedMessage> TokenizedMessage = FTokenizedMessage::Create(EMessageSeverity::Warning, FText::FromString(TEXT("Blocking (synchronous) loading nodes found.")));
+				TSharedRef<FTokenizedMessage> TokenizedMessage = FTokenizedMessage::Create((bShouldError ? EMessageSeverity::Error : EMessageSeverity::Warning), FText::FromString(TEXT("Blocking (synchronous) loading nodes found.")));
 
 				TokenizedMessage->AddToken(FActionToken::Create(
 					FText::FromString(TEXT("Open Blueprint and Focus Node")),
@@ -44,7 +49,7 @@ EDataValidationResult UEditorValidator_BlockingLoad::ValidateLoadedAsset_Impleme
 
 				Context.AddMessage(TokenizedMessage);
 
-				DataValidationResult = EDataValidationResult::Invalid;
+				DataValidationResult = bShouldError ? EDataValidationResult::Invalid : EDataValidationResult::Valid;
 			}
 		}
 	}
