@@ -14,6 +14,58 @@
 
 namespace UE::Internal::PureNodeValidatorHelpers
 {
+	bool IsHarmlessPureNode(UK2Node_CallFunction* CallNode)
+	{
+		if (!CallNode) return false;
+
+		UFunction* Func = CallNode->GetTargetFunction();
+		if (!Func)
+		{
+			return false;
+		}
+
+		if (Func->HasMetaData(TEXT("NativeBreakFunc")) || Func->HasMetaData(TEXT("NativeMakeFunc")))
+		{
+			return true;
+		}
+
+		UClass* OwnerClass = Func->GetOuterUClass();
+		if (!OwnerClass)
+		{
+			return false;
+		}
+		
+		const FString OwnerName = OwnerClass->GetName();
+
+		if (OwnerName.Contains(TEXT("KismetMathLibrary")) ||
+			OwnerName.Contains(TEXT("KismetSystemLibrary")) ||
+			OwnerName.Contains(TEXT("KismetTextLibrary")) ||
+			OwnerName.Contains(TEXT("KismetStringTableLibrary")) ||
+			OwnerName.Contains(TEXT("KismetRenderingLibrary")) ||
+			OwnerName.Contains(TEXT("KismetMaterialLibrary")) ||
+			OwnerName.Contains(TEXT("KismetInternationalizationLibrary")) ||
+			OwnerName.Contains(TEXT("KismetInputLibrary")) ||
+			OwnerName.Contains(TEXT("KismetGuidLibrary")) ||
+			OwnerName.Contains(TEXT("KismetArrayLibrary")) ||
+			OwnerName.Contains(TEXT("GameplayStatics")) ||
+			OwnerName.Contains(TEXT("DataTableFunctionLibrary")) ||
+			OwnerName.Contains(TEXT("BlueprintSetLibrary")) ||
+			OwnerName.Contains(TEXT("BlueprintPlatformLibrary")) ||
+			OwnerName.Contains(TEXT("BlueprintPathsLibrary")) ||
+			OwnerName.Contains(TEXT("BlueprintMapLibrary")) ||
+			OwnerName.Contains(TEXT("BlueprintInstancedStructLibrary")) ||
+			OwnerName.Contains(TEXT("KismetNodeHelperLibrary")))
+		{
+			return true;
+		}
+
+		//TODO: Allow users to expand the list above? --KaosSpectrum
+		//Maybe find a better way (though i can't think of one...)
+		
+
+		return false;
+	}
+	
     // Finds every event/function entry (no incoming exec) in the graph.
     static void CollectExecEntries(UEdGraph* Graph, TSet<UEdGraphNode*>& OutEntries)
     {
@@ -195,7 +247,7 @@ EDataValidationResult UEditorValidator_PureNode::ValidateLoadedAsset_Implementat
                 }
             }
 
-            if (!CallNode->IsNodePure())
+            if (!CallNode->IsNodePure() || UE::Internal::PureNodeValidatorHelpers::IsHarmlessPureNode(CallNode))
             {
                 continue;
             }
