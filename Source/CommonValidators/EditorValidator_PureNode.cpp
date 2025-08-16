@@ -223,7 +223,11 @@ EDataValidationResult UEditorValidator_PureNode::ValidateLoadedAsset_Implementat
 	bool bFoundBadNode = false;
 	bool bShouldError = GetDefault<UCommonValidatorsDeveloperSettings>()->bErrorOnPureNodeMultiExec;
 
-    for (UEdGraph* Graph : Blueprint->UbergraphPages)
+	TArray<UEdGraph*> AllGraphs;
+	AllGraphs.Append(Blueprint->FunctionGraphs);
+	AllGraphs.Append(Blueprint->UbergraphPages);
+	
+    for (UEdGraph* Graph : AllGraphs)
     {
         for (UEdGraphNode* Node : Graph->Nodes)
         {
