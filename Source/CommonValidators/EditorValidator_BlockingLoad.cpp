@@ -26,7 +26,11 @@ EDataValidationResult UEditorValidator_BlockingLoad::ValidateLoadedAsset_Impleme
 
 	EDataValidationResult DataValidationResult = EDataValidationResult::Valid;
 
-	for (UEdGraph* Graph : Blueprint->UbergraphPages)
+	TArray<UEdGraph*> AllGraphs;
+	AllGraphs.Append(Blueprint->FunctionGraphs);
+	AllGraphs.Append(Blueprint->UbergraphPages);
+	
+    for (UEdGraph* Graph : AllGraphs)
 	{
 		for (UEdGraphNode* Node : Graph->Nodes)
 		{
