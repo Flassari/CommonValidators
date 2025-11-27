@@ -25,6 +25,10 @@
 		{
 			"Name": "DataValidation",
 			"Enabled": true
+		},
+		{
+			"Name": "AssetManagerEditor",
+			"Enabled":  true
 		}
 	]
 }

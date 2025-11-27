@@ -14,7 +14,8 @@ public class CommonValidators : ModuleRules
 			"BlueprintGraph",
 			"DeveloperSettings",
 			"Kismet",
-			"UnrealEd"
+			"UnrealEd",
+			"AssetManagerEditor"
 		});
 	}
 }
