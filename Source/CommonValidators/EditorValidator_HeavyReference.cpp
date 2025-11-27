@@ -18,6 +18,8 @@
 #include "CommonValidatorsDeveloperSettings.h"
 #include "CommonValidatorsStatics.h"
 
+// Gen CPP
+#include UE_INLINE_GENERATED_CPP_BY_NAME(EditorValidator_HeavyReference)
 
 #define LOCTEXT_NAMESPACE "CommonValidators"
 
@@ -76,10 +78,11 @@ EDataValidationResult UEditorValidator_HeavyReference::ValidateLoadedAsset_Imple
 		return EDataValidationResult::NotValidated;
 	}
 
+	const UCommonValidatorsDeveloperSettings* const DevSettings = GetDefault<UCommonValidatorsDeveloperSettings>();
+
 	// Remove any BPs that inherit from the classes in class and child list
 	{
-		const TArray<TSubclassOf<UObject>>& IgnoreChildrenList = GetDefault<UCommonValidatorsDeveloperSettings>()->
-			HeavyValidatorClassAndChildIgnoreList;
+		const TArray<TSubclassOf<UObject>>& IgnoreChildrenList = DevSettings->HeavyValidatorClassAndChildIgnoreList;
 		for (const TSubclassOf<UObject>& IgnoredChild : IgnoreChildrenList)
 		{
 			if (UCommonValidatorsStatics::IsObjectAChildOf(InAsset, IgnoredChild))
@@ -89,7 +92,7 @@ EDataValidationResult UEditorValidator_HeavyReference::ValidateLoadedAsset_Imple
 		}
 	}
 	
-	const bool bShouldError = GetDefault<UCommonValidatorsDeveloperSettings>()->bErrorHeavyReference;
+	const bool bShouldError = DevSettings->bErrorHeavyReference;
 
 	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<
 		FAssetRegistryModule>("AssetRegistry");
@@ -136,14 +139,12 @@ EDataValidationResult UEditorValidator_HeavyReference::ValidateLoadedAsset_Imple
 		// Only support packages and primary assets
 		if (AssetPackageName == NAME_None && !AssetPrimaryId.IsValid())
 		{
-			UE_LOG(LogTemp, Display, TEXT("Asset not including in size: %s"), *FoundAssetId.PackageName.ToString())
 			continue;
 		}
 
 		// Don't bother showing code references
 		if (AssetPackageNameString.StartsWith(TEXT("/Script/")))
 		{
-			UE_LOG(LogTemp, Display, TEXT("Code Refs are defined as okie-dokie: %s"), *FoundAssetId.PackageName.ToString())
 			continue;
 		}
 
@@ -169,7 +170,7 @@ EDataValidationResult UEditorValidator_HeavyReference::ValidateLoadedAsset_Imple
 		
 		// Gather Specific Ref Classes to ignore for the root asset
 		TArray<TSubclassOf<UObject>, TInlineAllocator<8>> IgnoredClassList;
-		for (auto& ClassToIgnoreEntry : GetDefault<UCommonValidatorsDeveloperSettings>()->HeavyValidatorClassSpecificClassIgnoreList)
+		for (auto& ClassToIgnoreEntry : DevSettings->HeavyValidatorClassSpecificClassIgnoreList)
 		{
 			// Does this apply to this asset?
 			// Allowed on the root (idx0) and if propagation is set.
@@ -193,9 +194,6 @@ EDataValidationResult UEditorValidator_HeavyReference::ValidateLoadedAsset_Imple
 			{
 				bIsReferenceIgnored = true;
 			}
-
-			//const UObject* GeneratedClassCDO = IsValid(AsBlueprint->GeneratedClass) ? AsBlueprint->GeneratedClass->GetDefaultObject() : nullptr;
-			//const null* const AsType = Cast<null>(GeneratedClassCDO);
 		}
 
 		// Go for asset sizing
@@ -225,10 +223,18 @@ EDataValidationResult UEditorValidator_HeavyReference::ValidateLoadedAsset_Imple
 				{
 					TotalSize += FoundSize;
 				}
-				else
+				else if (DevSettings->bWarnOnUnsizableChildren)
 				{
-					// ?
-					UE_LOG(LogTemp, Warning, TEXT("Cannot stat size for %s.%s"), *FoundAssetId.ToString(), *AssetPackageNameString);
+					TSharedRef<FTokenizedMessage> ResultMessage = UCommonValidatorsStatics::CreateLinkedMessage(InAssetData,
+							FText::Format(
+								LOCTEXT("CommonValidators.HeavyRef.AssetWarning", "Failed to get memory size for {0}! ({1})"),
+								FText::FromString(FoundAssetId.ToString()),
+								FText::FromString(AssetPackageNameString)
+								),
+							EMessageSeverity::Warning
+						);
+					
+					Context.AddMessage(ResultMessage);
 				}
 			}
 
@@ -244,7 +250,7 @@ EDataValidationResult UEditorValidator_HeavyReference::ValidateLoadedAsset_Imple
 		}
 	}
 
-	if (TotalSize > GetDefault<UCommonValidatorsDeveloperSettings>()->MaximumAllowedReferenceSizeKiloBytes * 1024)
+	if (TotalSize > DevSettings->MaximumAllowedReferenceSizeKiloBytes * 1024)
 	{
 		TSharedRef<FTokenizedMessage> ResultMessage = UCommonValidatorsStatics::CreateLinkedMessage(InAssetData,
 				FText::Format(
