@@ -30,4 +30,6 @@ public:
 	static bool IsAssetAChildOf(const FAssetData& AnyAssetReference, const TSubclassOf<UObject> ObjectClass);
 	
 	static TSharedRef<FTokenizedMessage> CreateLinkedMessage(const FAssetData& InAssetData, const FText& Text, EMessageSeverity::Type Severity);
+
+	static FAssetIdentifier GetAssetIdentifierFromAssetData(const FAssetData& AssetData);
 };

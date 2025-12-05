@@ -3,14 +3,20 @@
 #include "CommonValidatorsStatics.h"
 
 // Unreal
-#include "BlueprintEditorModule.h"
-#include "ScopedTransaction.h"
+#include "AssetManagerEditor/Public/AssetManagerEditorModule.h"
 #include "AssetRegistry/AssetDataToken.h"
+#include "BlueprintEditorModule.h"
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphNode.h"
 #include "Kismet2/BlueprintEditorUtils.h"
+#include "ScopedTransaction.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "Toolkits/AssetEditorToolkit.h"
+
+// Project
+
+// Local
+
 
 void UCommonValidatorsStatics::OpenBlueprint(UBlueprint* Blueprint)
 {
@@ -122,8 +128,6 @@ bool UCommonValidatorsStatics::IsAssetAChildOf(const FAssetData& AnyAssetReferen
 			const UObject* GeneratedClassCDO = IsValid(Blueprint->GeneratedClass) ? Blueprint->GeneratedClass->GetDefaultObject() : nullptr;
 			return IsObjectAChildOf(GeneratedClassCDO, ObjectClass);
 		}
-		
-		//null* const AsType = Cast<null>(GeneratedClassCDO);
 	}
 
 	return false;
@@ -143,4 +147,24 @@ TSharedRef<FTokenizedMessage> UCommonValidatorsStatics::CreateLinkedMessage(cons
 	}
 
 	return TokenizedMessage;
+}
+
+FAssetIdentifier UCommonValidatorsStatics::GetAssetIdentifierFromAssetData(const FAssetData& AssetData)
+{
+	// In the some MSVCs, RVO appears to only occur on the first instantiated return if the branches return
+	// In the other path, non-RVO is used
+	FAssetIdentifier ReturnIdentifier{};
+
+	FPrimaryAssetId PrimaryAssetId = IAssetManagerEditorModule::ExtractPrimaryAssetIdFromFakeAssetData(AssetData);
+
+	if (PrimaryAssetId.IsValid())
+	{
+		ReturnIdentifier = PrimaryAssetId;
+	}
+	else
+	{
+		ReturnIdentifier = AssetData.PackageName;
+	}
+
+	return ReturnIdentifier;
 }

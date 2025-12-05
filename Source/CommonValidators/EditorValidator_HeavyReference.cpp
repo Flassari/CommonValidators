@@ -15,17 +15,12 @@
 // Project
 
 // Local
-#include "CommonValidatorsDeveloperSettings.h"
 #include "CommonValidatorsStatics.h"
 
 // Gen CPP
 #include UE_INLINE_GENERATED_CPP_BY_NAME(EditorValidator_HeavyReference)
 
 #define LOCTEXT_NAMESPACE "CommonValidators"
-
-namespace UE::Internal::HeavyReferenceValidatorHelpers
-{
-} // namespace UE::Internal::HeavyReferenceValidatorHelpers
 
 bool UEditorValidator_HeavyReference::CanValidateAsset_Implementation(
 	const FAssetData& InAssetData,
@@ -71,14 +66,17 @@ bool UEditorValidator_HeavyReference::CanValidateAsset_Implementation(
 EDataValidationResult UEditorValidator_HeavyReference::ValidateLoadedAsset_Implementation(const FAssetData& InAssetData, UObject* InAsset,
                                                                                           FDataValidationContext& Context)
 {
+	const UCommonValidatorsDeveloperSettings* const DevSettings = GetDefault<UCommonValidatorsDeveloperSettings>();
+	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	const IAssetRegistry* const AssetRegistry = &AssetRegistryModule.Get();
+	IAssetManagerEditorModule* const EditorModule = &IAssetManagerEditorModule::Get();
+
 	// Ignore non-BP types
 	UBlueprint* Blueprint = Cast<UBlueprint>(InAsset);
 	if (!IsValid(Blueprint))
 	{
 		return EDataValidationResult::NotValidated;
 	}
-
-	const UCommonValidatorsDeveloperSettings* const DevSettings = GetDefault<UCommonValidatorsDeveloperSettings>();
 
 	// Remove any BPs that inherit from the classes in class and child list
 	{
@@ -92,26 +90,9 @@ EDataValidationResult UEditorValidator_HeavyReference::ValidateLoadedAsset_Imple
 		}
 	}
 	
-	const bool bShouldError = DevSettings->bErrorHeavyReference;
+	// Convert to AssetIdentifier as that's what we are using in the loop
+	FAssetIdentifier InAssetIdentifier = UCommonValidatorsStatics::GetAssetIdentifierFromAssetData(InAssetData);
 
-	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<
-		FAssetRegistryModule>("AssetRegistry");
-	IAssetRegistry* const AssetReg = &AssetRegistryModule.Get();
-	IAssetManagerEditorModule* const EditorModule = &IAssetManagerEditorModule::Get();
-
-	FAssetIdentifier InAssetIdentifier;
-	{
-		FPrimaryAssetId PrimaryAssetId = IAssetManagerEditorModule::ExtractPrimaryAssetIdFromFakeAssetData(InAssetData);
-
-		if (PrimaryAssetId.IsValid())
-		{
-			InAssetIdentifier = PrimaryAssetId;
-		}
-		else
-		{
-			InAssetIdentifier = InAssetData.PackageName;
-		}
-	}
 
 	// Got assets. We want to sizemap these
 	TSet<FAssetIdentifier> VisitList;
@@ -119,104 +100,35 @@ EDataValidationResult UEditorValidator_HeavyReference::ValidateLoadedAsset_Imple
 	FoundAssetList.Add(InAssetIdentifier);
 	uint64 TotalSize = 0;
 
-	for (uint64 i = 0; i < FoundAssetList.Num(); i++)
+	for (uint64 Index = 0; Index < FoundAssetList.Num(); ++Index)
 	{
-		const FAssetIdentifier& FoundAssetId = FoundAssetList[i];
+		const FAssetIdentifier& FoundAssetId = FoundAssetList[Index];
 		if (VisitList.Contains(FoundAssetId))
 		{
-			// Cont
 			continue;
 		}
 
 		VisitList.Add(FoundAssetId);
 
 		// Size this asset first
-		FName AssetPackageName = FoundAssetId.IsPackage() ? FoundAssetId.PackageName : NAME_None;
-		FString AssetPackageNameString = (AssetPackageName != NAME_None) ? AssetPackageName.ToString() : FString();
-		FPrimaryAssetId AssetPrimaryId = FoundAssetId.GetPrimaryAssetId();
-		int32 ChunkId = UAssetManager::ExtractChunkIdFromPrimaryAssetId(AssetPrimaryId);
-
-		// Only support packages and primary assets
-		if (AssetPackageName == NAME_None && !AssetPrimaryId.IsValid())
-		{
-			continue;
-		}
-
-		// Don't bother showing code references
-		if (AssetPackageNameString.StartsWith(TEXT("/Script/")))
-		{
-			continue;
-		}
+		const FName AssetPackageName = FoundAssetId.IsPackage() ? FoundAssetId.PackageName : NAME_None;
 
 		// Set some defaults for this node. These will be used if we can't actually locate the asset.
-		FAssetData ThisAssetData;
-		if (AssetPackageName != NAME_None)
+		FAssetData ThisAssetData{};
+		if (!GetAssetData(AssetRegistry, FoundAssetId, ThisAssetData))
 		{
-			ThisAssetData.AssetName = AssetPackageName;
-			ThisAssetData.AssetClassPath = FTopLevelAssetPath(TEXT("/None"), TEXT("MissingAsset"));
-
-			const FString AssetPathString = AssetPackageNameString + TEXT(".") + FPackageName::GetLongPackageAssetName(AssetPackageNameString);
-			FAssetData FoundData = AssetReg->GetAssetByObjectPath(FSoftObjectPath(AssetPathString));
-
-			if (FoundData.IsValid())
-			{
-				ThisAssetData = MoveTemp(FoundData);
-			}
-		}
-		else
-		{
-			ThisAssetData = IAssetManagerEditorModule::CreateFakeAssetDataFromPrimaryAssetId(AssetPrimaryId);
-		}
-		
-		// Gather Specific Ref Classes to ignore for the root asset
-		TArray<TSubclassOf<UObject>, TInlineAllocator<8>> IgnoredClassList;
-		for (auto& ClassToIgnoreEntry : DevSettings->HeavyValidatorClassSpecificClassIgnoreList)
-		{
-			// Does this apply to this asset?
-			// Allowed on the root (idx0) and if propagation is set.
-			if (i == 0 || ClassToIgnoreEntry.Value.AllowPropagationToChildren)
-			{
-				const TSubclassOf<UObject> IgnoredClass = ClassToIgnoreEntry.Key;
-
-				if (UCommonValidatorsStatics::IsObjectAChildOf(InAsset, IgnoredClass))
-				{
-					IgnoredClassList.Append(ClassToIgnoreEntry.Value.ClassList);
-				}
-			}
-		}
-
-		// Ignore if this asset is in the ignore list
-		bool bIsReferenceIgnored = false;
-		for (const TSubclassOf<UObject>& IgnoreClass : IgnoredClassList)
-		{
-			// Needs to resolve BP class..
-			if (UCommonValidatorsStatics::IsAssetAChildOf(ThisAssetData, IgnoreClass))
-			{
-				bIsReferenceIgnored = true;
-			}
+			continue;
 		}
 
 		// Go for asset sizing
-		if (ThisAssetData.IsValid() && !bIsReferenceIgnored)
+		// Skip including checks on the first iteration
+		if (Index == 0 || IsAssetIncluded(DevSettings, InAsset, ThisAssetData))
 		{
-			FAssetManagerDependencyQuery DependencyQuery = FAssetManagerDependencyQuery::None();
-			DependencyQuery.Flags = UE::AssetRegistry::EDependencyQuery::Game;
-
-			if (AssetPackageName != NAME_None)
-			{
-				DependencyQuery.Categories = UE::AssetRegistry::EDependencyCategory::Package;
-				DependencyQuery.Flags |= UE::AssetRegistry::EDependencyQuery::Hard;
-			}
-			else
-			{
-				// ?
-				DependencyQuery.Categories = UE::AssetRegistry::EDependencyCategory::Manage;
-				DependencyQuery.Flags |= UE::AssetRegistry::EDependencyQuery::Direct;
-			}
+			FAssetManagerDependencyQuery DependencyQuery = SetupDependencyQuery(AssetPackageName);
 
 			// Ignore ourselves in this calc.
 			// We are not a reference: we are us.
-			if (AssetPackageName != NAME_None && i > 0)
+			if (AssetPackageName != NAME_None && Index > 0)
 			{
 				int64 FoundSize = 0;
 				if (EditorModule->GetIntegerValueForCustomColumn(ThisAssetData, IAssetManagerEditorModule::ResourceSizeName, FoundSize))
@@ -225,6 +137,8 @@ EDataValidationResult UEditorValidator_HeavyReference::ValidateLoadedAsset_Imple
 				}
 				else if (DevSettings->bWarnOnUnsizableChildren)
 				{
+					const FString AssetPackageNameString = (AssetPackageName != NAME_None) ? AssetPackageName.ToString() : FString();
+
 					TSharedRef<FTokenizedMessage> ResultMessage = UCommonValidatorsStatics::CreateLinkedMessage(InAssetData,
 							FText::Format(
 								LOCTEXT("CommonValidators.HeavyRef.AssetWarning", "Failed to get memory size for {0}! ({1})"),
@@ -240,7 +154,7 @@ EDataValidationResult UEditorValidator_HeavyReference::ValidateLoadedAsset_Imple
 
 			// Find lowers
 			TArray<FAssetIdentifier> OutAssetData;
-			AssetReg->GetDependencies(FoundAssetId, OutAssetData, DependencyQuery.Categories, DependencyQuery.Flags);
+			AssetRegistry->GetDependencies(FoundAssetId, OutAssetData, DependencyQuery.Categories, DependencyQuery.Flags);
 
 			// The TArray may have realloc'd and caused our pointer to invalidate at this point.
 			// FoundAssetId is now unsafe to use.
@@ -258,15 +172,104 @@ EDataValidationResult UEditorValidator_HeavyReference::ValidateLoadedAsset_Imple
 					FText::FromString(InAssetIdentifier.ToString()),
 					TotalSize
 					),
-				(bShouldError ? EMessageSeverity::Error : EMessageSeverity::PerformanceWarning)
+				(DevSettings->bErrorHeavyReference ? EMessageSeverity::Error : EMessageSeverity::PerformanceWarning)
 			);
 		
 		Context.AddMessage(ResultMessage);
 
-		return bShouldError ? EDataValidationResult::Invalid : EDataValidationResult::Valid;
+		return DevSettings->bErrorHeavyReference ? EDataValidationResult::Invalid : EDataValidationResult::Valid;
 	}
 
 	return EDataValidationResult::Valid;
 }
+
+bool UEditorValidator_HeavyReference::IsAssetIncluded(const UCommonValidatorsDeveloperSettings* const DevSettings, const UObject* const InAsset, const FAssetData& ThisAssetData)
+{
+	// Gather Specific Ref Classes to ignore for the root asset
+	TArray<TSubclassOf<UObject>, TInlineAllocator<8>> IgnoredClassList;
+	for (auto& ClassToIgnoreEntry : DevSettings->HeavyValidatorClassSpecificClassIgnoreList)
+	{
+		// Does this apply to this asset?
+		// Allowed on the root (idx0) and if propagation is set.
+		if (ClassToIgnoreEntry.Value.AllowPropagationToChildren)
+		{
+			const TSubclassOf<UObject> IgnoredClass = ClassToIgnoreEntry.Key;
+
+			if (UCommonValidatorsStatics::IsObjectAChildOf(InAsset, IgnoredClass))
+			{
+				IgnoredClassList.Append(ClassToIgnoreEntry.Value.ClassList);
+			}
+		}
+	}
+
+	// Ignore if this asset is in the ignore list
+	for (const TSubclassOf<UObject>& IgnoreClass : IgnoredClassList)
+	{
+		// Needs to resolve BP class..
+		if (UCommonValidatorsStatics::IsAssetAChildOf(ThisAssetData, IgnoreClass))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+bool UEditorValidator_HeavyReference::GetAssetData(const IAssetRegistry* const AssetRegistry, const FAssetIdentifier& FoundAssetId, FAssetData& OutAssetData)
+{
+	const FName AssetPackageName = FoundAssetId.IsPackage() ? FoundAssetId.PackageName : NAME_None;
+	const FString AssetPackageNameString = (AssetPackageName != NAME_None) ? AssetPackageName.ToString() : FString();
+	const FPrimaryAssetId AssetPrimaryId = FoundAssetId.GetPrimaryAssetId();
+
+	// Only support packages and primary assets
+	if (AssetPackageName == NAME_None && !AssetPrimaryId.IsValid())
+	{
+		return false;
+	}
+
+	// Don't bother showing code references
+	if (AssetPackageNameString.StartsWith(TEXT("/Script/")))
+	{
+		return false;
+	}
+
+	if (AssetPackageName != NAME_None)
+	{
+		const FString AssetPathString = AssetPackageNameString + TEXT(".") + FPackageName::GetLongPackageAssetName(AssetPackageNameString);
+		FAssetData FoundData = AssetRegistry->GetAssetByObjectPath(FSoftObjectPath(AssetPathString));
+
+		if (!FoundData.IsValid())
+		{
+			return false;
+		}
+
+		OutAssetData = MoveTemp(FoundData);
+	}
+	else
+	{
+		OutAssetData = IAssetManagerEditorModule::CreateFakeAssetDataFromPrimaryAssetId(AssetPrimaryId);
+	}
+
+	return OutAssetData.IsValid();
+}
+
+FAssetManagerDependencyQuery UEditorValidator_HeavyReference::SetupDependencyQuery(const FName& AssetName)
+{
+	FAssetManagerDependencyQuery DependencyQuery = FAssetManagerDependencyQuery::None();
+	DependencyQuery.Flags = UE::AssetRegistry::EDependencyQuery::Game;
+
+	if (AssetName != NAME_None)
+	{
+		DependencyQuery.Categories = UE::AssetRegistry::EDependencyCategory::Package;
+		DependencyQuery.Flags |= UE::AssetRegistry::EDependencyQuery::Hard;
+	}
+	else
+	{
+		DependencyQuery.Categories = UE::AssetRegistry::EDependencyCategory::Manage;
+		DependencyQuery.Flags |= UE::AssetRegistry::EDependencyQuery::Direct;
+	}
+
+	return DependencyQuery;
+}
+
 
 #undef LOCTEXT_NAMESPACE
