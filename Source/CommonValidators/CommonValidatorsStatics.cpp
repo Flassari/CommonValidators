@@ -6,6 +6,7 @@
 #include "AssetManagerEditor/Public/AssetManagerEditorModule.h"
 #include "AssetRegistry/AssetDataToken.h"
 #include "BlueprintEditorModule.h"
+#include "IMaterialEditor.h"
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphNode.h"
 #include "Kismet2/BlueprintEditorUtils.h"
@@ -52,6 +53,8 @@ void UCommonValidatorsStatics::OpenBlueprintAndFocusNode(UBlueprint* Blueprint, 
     // Select and zoom to the node
     BlueprintEditor->JumpToHyperlink(Node, false); // false: don't request rename
 }
+
+
 
 
 void UCommonValidatorsStatics::DeleteNodeFromBlueprint(UBlueprint* Blueprint, UEdGraph* Graph, UEdGraphNode* Node)
@@ -125,8 +128,31 @@ bool UCommonValidatorsStatics::IsAssetAChildOf(const FAssetData& AnyAssetReferen
 	return false;
 }
 
+void UCommonValidatorsStatics::OpenMaterialAndFocusExpression(UMaterial* Material, const UMaterialExpression* Expression)
+{
+	if(!Material) return;
+		
+	UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+	if(!AssetEditorSubsystem) return;
+
+	// open/switch to material graph
+	if(!AssetEditorSubsystem->OpenEditorForAsset(Material)) return;
+
+	
+	if(IMaterialEditor* MaterialEditor = static_cast<IMaterialEditor*>(AssetEditorSubsystem->FindEditorForAsset(Material, false)))
+	{
+		MaterialEditor->FocusWindow();
+
+		// jump to expression
+		if(Expression)
+		{
+			MaterialEditor->JumpToExpression(const_cast<UMaterialExpression*>(Expression));	
+		}			
+	}
+}
+
 TSharedRef<FTokenizedMessage> UCommonValidatorsStatics::CreateLinkedMessage(const FAssetData& InAssetData, const FText& Text,
-	EMessageSeverity::Type Severity)
+                                                                            EMessageSeverity::Type Severity)
 {
 	// Blank Message
 	TSharedRef<FTokenizedMessage> TokenizedMessage = FTokenizedMessage::Create(Severity,FText());

@@ -31,7 +31,11 @@ public:
 
 	UFUNCTION()
 	static bool IsAssetAChildOf(const FAssetData& AnyAssetReference, const TSubclassOf<UObject> ObjectClass);
-	
+
+	// opens the Material Editor for a Material and jumps to the (optional) specified expression
+	UFUNCTION()
+	static void OpenMaterialAndFocusExpression(UMaterial* Material, const UMaterialExpression* Expression = nullptr);
+
 	static TSharedRef<FTokenizedMessage> CreateLinkedMessage(const FAssetData& InAssetData, const FText& Text, EMessageSeverity::Type Severity);
 
 	static FAssetIdentifier GetAssetIdentifierFromAssetData(const FAssetData& AssetData);

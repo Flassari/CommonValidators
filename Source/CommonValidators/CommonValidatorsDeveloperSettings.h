@@ -123,4 +123,7 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category="Common Validators|Heavy Reference Validator", meta = (EditCondition = "bEnableHeavyReferenceValidator == true"))
 	TMap<TSoftClassPtr<UObject>, FCommonValidatorClassArray> HeavyValidatorClassSpecificClassIgnoreList;
 
+	UPROPERTY(Config, EditAnywhere, Category="Common Validators|Material Texture Sampler Validator")
+	bool bEnableMaterialTextureSamplerValidator = true;
+
 };
