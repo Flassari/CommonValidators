@@ -15,6 +15,7 @@ public class CommonValidators : ModuleRules
 			"DeveloperSettings",
 			"Kismet",
 			"UnrealEd",
+			"ApplicationCore",
 			"AssetManagerEditor"
 		});
 	}
