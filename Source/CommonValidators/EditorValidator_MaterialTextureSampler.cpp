@@ -3,6 +3,7 @@
 
 #include "EditorValidator_MaterialTextureSampler.h"
 
+#include "Materials/Material.h"
 #include "CommonValidatorsDeveloperSettings.h"
 #include "CommonValidatorsStatics.h"
 #include "Materials/MaterialExpressionTextureObjectParameter.h"

@@ -23,7 +23,7 @@ struct FCommonValidatorClassArray
 	{
 		return ClassList.ContainsByPredicate([&](const TSoftClassPtr<UObject> &SoftClassPtr)
 		   {
-			   return AllowPropagationToChildren ? SoftClassPtr.IsValid() && ClassToCheck->IsChildOf(SoftClassPtr.Get()) : ClassToCheck.Get() == SoftClassPtr;
+			   return AllowPropagationToChildren ? SoftClassPtr.IsLoaded() && ClassToCheck->IsChildOf(SoftClassPtr.Get()) : ClassToCheck.Get() == SoftClassPtr;
 		   });	
 	}
 };

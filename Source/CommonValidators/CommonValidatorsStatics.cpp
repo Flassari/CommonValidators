@@ -13,6 +13,7 @@
 #include "ScopedTransaction.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "Toolkits/AssetEditorToolkit.h"
+#include "Materials/Material.h"
 
 // Project
 
