@@ -28,6 +28,95 @@ struct FCommonValidatorClassArray
 	}
 };
 
+
+/** Configurable severity for settings-driven Blueprint validation rules. */
+UENUM(BlueprintType)
+enum class EEditorValidatorBlueprintValidationRuleSeverity : uint8
+{
+	Info,
+	PerformanceWarning,
+	Warning,
+	Error
+};
+
+/** Controls whether a base Blueprint class is included when matching a validation rule. */
+UENUM(BlueprintType)
+enum class EEditorValidatorBlueprintBaseScope : uint8
+{
+	BaseAndDerived,
+	DerivedOnly
+};
+
+/** Settings-driven rule for forbidding Blueprint implementations. */
+USTRUCT(BlueprintType)
+struct FEditorValidatorBlueprintImplementationRule
+{
+	GENERATED_BODY()
+
+	/**
+	 * Base class this rule applies to.
+	 * Any Blueprint inheriting from this class may be validated.
+	 */
+	UPROPERTY(EditAnywhere, Config, Category="Implementation", meta=(ToolTip="The Blueprint base class this rule applies to."))
+	TSoftClassPtr<UObject> BlueprintBaseClass;
+
+	/**
+	 * Determines whether validation applies to the selected class itself,
+	 * or only Blueprints derived from it.
+	 */
+	UPROPERTY(EditAnywhere, Config, Category="Implementation", meta=(ToolTip="Whether the selected class itself or only derived classes are checked."))
+	EEditorValidatorBlueprintBaseScope BaseScope = EEditorValidatorBlueprintBaseScope::DerivedOnly;
+
+	/**
+	 * Blueprint function or event that should not be overridden.
+	 *
+	 * Uses the Blueprint-visible name, not necessarily the native C++ name.
+	 *
+	 * Example:
+	 *	Native: ActivateAbility()
+	 *	Blueprint: K2_ActivateAbility
+	 */
+	UPROPERTY(EditAnywhere, Config, Category="Implementation", meta=(ToolTip="The Blueprint function or event to forbid. Use the Blueprint-visible name."))
+	FName FunctionToForbid;
+
+	/**
+	 * Validation message shown when this rule is triggered.
+	 *
+	 * Example:
+	 *	'Do not override ActivateAbility directly.'
+	 */
+	UPROPERTY(EditAnywhere, Config, Category="Message", meta=(MultiLine="true", ToolTip="Message shown when validation fails."))
+	FText Message;
+
+	/**
+	 * Suggested fix shown alongside the validation message.
+	 *
+	 * Example:
+	 *	'Move gameplay logic into OnActionStarted instead.'
+	 */
+	UPROPERTY(EditAnywhere, Config, Category="Message", meta=(MultiLine="true", ToolTip="Suggested fix or alternative workflow."))
+	FString Suggestion;
+
+	/**
+	 * Determines how severe the validation issue appears in the editor.
+	 *
+	 * Warning:
+	 *	General issue that should be fixed.
+	 *
+	 * Error:
+	 *	Rule violation that should block usage.
+	 *
+	 * PerformanceWarning:
+	 *	Issue related to runtime or scalability concerns.
+	 *
+	 * Info:
+	 *	Non-blocking informational message.
+	 */
+	UPROPERTY(EditAnywhere, Config, Category="Message", meta=(ToolTip="Controls how severe this validation issue appears."))
+	EEditorValidatorBlueprintValidationRuleSeverity Severity =
+		EEditorValidatorBlueprintValidationRuleSeverity::Warning;
+};
+
 UCLASS(config = Editor, defaultconfig, meta = (DisplayName = "Common Validators"))
 class COMMONVALIDATORS_API UCommonValidatorsDeveloperSettings : public UDeveloperSettings
 {
@@ -126,4 +215,6 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category="Common Validators|Material Texture Sampler Validator")
 	bool bEnableMaterialTextureSamplerValidator = true;
 
+	UPROPERTY(EditAnywhere, Config, Category = "Blueprint Implementations")
+	TArray<FEditorValidatorBlueprintImplementationRule> BlueprintImplementationRules;
 };
